@@ -11,6 +11,7 @@
 
 package alluxio.client.file.cache;
 
+import alluxio.client.file.AlluxioFileInStream;
 import alluxio.client.file.FileInStream;
 import alluxio.client.file.URIStatus;
 import alluxio.client.quota.CacheQuota;
@@ -21,22 +22,19 @@ import alluxio.exception.AlluxioException;
 import alluxio.metrics.MetricKey;
 import alluxio.metrics.MetricsSystem;
 import alluxio.util.io.BufferUtils;
-
 import com.codahale.metrics.Meter;
 import com.google.common.base.Preconditions;
 import com.google.common.io.Closer;
+import java.io.IOException;
+import javax.annotation.concurrent.NotThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-
-import javax.annotation.concurrent.NotThreadSafe;
 
 /**
  * Implementation of {@link FileInStream} that reads from a local cache if possible.
  */
 @NotThreadSafe
-public class LocalCacheFileInStream extends FileInStream {
+public class LocalCacheFileInStream extends AlluxioFileInStream {
   private static final Logger LOG = LoggerFactory.getLogger(LocalCacheFileInStream.class);
 
   /** Page size in bytes. */
@@ -86,6 +84,7 @@ public class LocalCacheFileInStream extends FileInStream {
    */
   public LocalCacheFileInStream(URIStatus status, FileInStreamOpener fileOpener,
       CacheManager cacheManager, AlluxioConfiguration conf) {
+    LOG.debug("init, LocalCacheFileInStream 333333333");
     mPageSize = conf.getBytes(PropertyKey.USER_CLIENT_CACHE_PAGE_SIZE);
     mExternalFileInStreamOpener = fileOpener;
     mCacheManager = cacheManager;
