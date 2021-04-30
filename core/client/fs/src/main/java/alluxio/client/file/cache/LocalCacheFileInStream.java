@@ -11,7 +11,6 @@
 
 package alluxio.client.file.cache;
 
-import alluxio.client.file.AlluxioFileInStream;
 import alluxio.client.file.FileInStream;
 import alluxio.client.file.URIStatus;
 import alluxio.client.quota.CacheQuota;
@@ -34,7 +33,7 @@ import org.slf4j.LoggerFactory;
  * Implementation of {@link FileInStream} that reads from a local cache if possible.
  */
 @NotThreadSafe
-public class LocalCacheFileInStream extends AlluxioFileInStream {
+public class LocalCacheFileInStream extends FileInStream {
   private static final Logger LOG = LoggerFactory.getLogger(LocalCacheFileInStream.class);
 
   /** Page size in bytes. */
