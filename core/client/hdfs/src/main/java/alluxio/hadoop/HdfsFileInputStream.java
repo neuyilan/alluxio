@@ -19,6 +19,7 @@ import alluxio.exception.ExceptionMessage;
 import alluxio.exception.FileDoesNotExistException;
 
 import java.nio.ByteBuffer;
+import org.apache.hadoop.fs.ByteBufferReadable;
 import org.apache.hadoop.fs.FileSystem.Statistics;
 import org.apache.hadoop.fs.PositionedReadable;
 import org.apache.hadoop.fs.Seekable;
@@ -37,7 +38,8 @@ import javax.annotation.concurrent.NotThreadSafe;
  * {@link FileInStream} with additional statistics gathering in a {@link Statistics} object.
  */
 @NotThreadSafe
-public class HdfsFileInputStream extends InputStream implements Seekable, PositionedReadable, ByteBufferReadable{
+public class HdfsFileInputStream extends InputStream implements Seekable, PositionedReadable,
+    ByteBufferReadable {
   private static final Logger LOG = LoggerFactory.getLogger(HdfsFileInputStream.class);
 
   private final Statistics mStatistics;
@@ -98,12 +100,6 @@ public class HdfsFileInputStream extends InputStream implements Seekable, Positi
   @Override
   public long getPos() throws IOException {
     return mInputStream.getPos();
-  }
-
-  @Override
-  public int read(ByteBuffer buf) throws IOException {
-    LOG.warn("the read(ByteBuffer buf) method is not implement yet!!!");
-    return -1;
   }
 
   @Override
@@ -195,5 +191,11 @@ public class HdfsFileInputStream extends InputStream implements Seekable, Positi
       throw new IOException("Cannot skip bytes in a closed stream.");
     }
     return mInputStream.skip(n);
+  }
+
+  @Override
+  public int read(ByteBuffer buf) throws IOException {
+    LOG.debug("add by qihouliang, come in the read(ByteBuffer buf) in HdfsFileInputStream");
+    return mInputStream.read(buf);
   }
 }

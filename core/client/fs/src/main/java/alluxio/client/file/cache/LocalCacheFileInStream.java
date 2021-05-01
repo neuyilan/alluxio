@@ -25,6 +25,7 @@ import com.codahale.metrics.Meter;
 import com.google.common.base.Preconditions;
 import com.google.common.io.Closer;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -343,5 +344,28 @@ public class LocalCacheFileInStream extends FileInStream {
             return 0;
           });
     }
+  }
+
+  @Override
+  public int read(ByteBuffer buf) throws IOException {
+//    getExternalFileInStream();
+    LOG.debug("add by qihouliang, come in the read(ByteBuffer buf) in LocalCacheFileInStream");
+//    return mExternalFileInStream.read(buf);
+    byte[] tmpByteArray = new byte[buf.remaining()];
+    int result = read(tmpByteArray, buf.position(), buf.remaining());
+    buf = ByteBuffer.wrap(tmpByteArray);
+    return result;
+  }
+
+  private synchronized FileInStream getExternalFileInStream() throws IOException {
+    try {
+      if (mExternalFileInStream == null) {
+        mExternalFileInStream = mExternalFileInStreamOpener.open(mStatus);
+        mCloser.register(mExternalFileInStream);
+      }
+    } catch (AlluxioException e) {
+      throw new IOException(e);
+    }
+    return mExternalFileInStream;
   }
 }
