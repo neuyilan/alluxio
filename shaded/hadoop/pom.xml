@@ -33,6 +33,13 @@
     <lib.jar.name>${project.artifactId}-${ufs.hadoop.version}-${project.version}.jar</lib.jar.name>
   </properties>
 
+  <repositories>
+    <repository>
+      <id>cloudera</id>
+      <url>https://repository.cloudera.com/artifactory/cloudera-repos/</url>
+    </repository>
+  </repositories>
+
   <dependencies>
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>

@@ -21,12 +21,13 @@ import alluxio.metrics.MetricsConfig;
 import alluxio.metrics.MetricsSystem;
 
 import com.google.common.base.Preconditions;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.DFSHedgedReadMetrics;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.util.Progressable;
 import org.slf4j.Logger;
@@ -45,7 +46,7 @@ import java.util.Set;
  * interface, using Alluxio local cache. This client will first consult the local cache before
  * requesting the remote Hadoop FileSystem in case of cache misses.
  */
-public class LocalCacheFileSystem extends org.apache.hadoop.fs.FileSystem {
+public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFileSystem {
 
   private static final Logger LOG = LoggerFactory.getLogger(LocalCacheFileSystem.class);
   private static final Set<String> SUPPORTED_FS = new HashSet<String>() {
@@ -94,7 +95,7 @@ public class LocalCacheFileSystem extends org.apache.hadoop.fs.FileSystem {
       throw new UnsupportedOperationException(
           uri.getScheme() + " is not supported as the external filesystem.");
     }
-    super.initialize(uri, conf);
+
     mHadoopConf = conf;
     // Set statistics
     setConf(conf);
@@ -114,6 +115,7 @@ public class LocalCacheFileSystem extends org.apache.hadoop.fs.FileSystem {
 
     getConf().set(hdfsImpl, origin);
 
+    super.initialize(uri, conf);
     mAlluxioConf = HadoopUtils.toAlluxioConf(mHadoopConf);
     // Handle metrics
     Properties metricsProperties = new Properties();
@@ -221,5 +223,25 @@ public class LocalCacheFileSystem extends org.apache.hadoop.fs.FileSystem {
   @Override
   public FileStatus getFileStatus(Path f) throws IOException {
     return mExternalFileSystem.getFileStatus(f);
+  }
+
+  @Override
+  public boolean isFileClosed(final Path src) throws IOException {
+    return ((DistributedFileSystem)mExternalFileSystem).isFileClosed(src);
+  }
+
+  @Override
+  public ContentSummary getContentSummary(Path f) throws IOException {
+    return mExternalFileSystem.getContentSummary(f);
+  }
+
+  @Override
+  public boolean recoverLease(final Path f) throws IOException {
+    return ((DistributedFileSystem)mExternalFileSystem).recoverLease(f);
+  }
+
+  @Override
+  public DFSHedgedReadMetrics getHedgedReadMetrics(){
+    return ((DistributedFileSystem)mExternalFileSystem).getHedgedReadMetrics();
   }
 }
