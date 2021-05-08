@@ -426,6 +426,7 @@ public class LocalCacheFileInStream extends FileInStream {
               + "bytes to read = %d, actual bytes read = %d, bytes remains in file %d",
           len, totalBytesRead, remaining()));
     }
+    buf.put(b, off, len);
     return totalBytesRead;
   }
 }
