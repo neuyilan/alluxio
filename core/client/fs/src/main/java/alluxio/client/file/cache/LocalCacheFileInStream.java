@@ -27,6 +27,7 @@ import com.google.common.io.Closer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import javax.annotation.concurrent.NotThreadSafe;
+import org.apache.hadoop.crypto.CryptoInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,6 +99,17 @@ public class LocalCacheFileInStream extends FileInStream {
       mCacheScope = CacheScope.GLOBAL;
     }
     Metrics.registerGauges();
+  }
+
+  public synchronized void init() throws IOException {
+    try {
+      if (mExternalFileInStream == null) {
+        mExternalFileInStream = mExternalFileInStreamOpener.open(mStatus);
+        mCloser.register(mExternalFileInStream);
+      }
+    } catch (AlluxioException e) {
+      throw new IOException(e);
+    }
   }
 
   @Override
@@ -361,7 +373,11 @@ public class LocalCacheFileInStream extends FileInStream {
     return result;
   }
 
-//  private synchronized byte[] readExternalPageFromBuffer(long pos) throws IOException {
+  public FileInStream getmExternalFileInStream() {
+    return mExternalFileInStream;
+  }
+
+  //  private synchronized byte[] readExternalPageFromBuffer(long pos) throws IOException {
 //    long pageStart = pos - (pos % mPageSize);
 //    FileInStream stream = getExternalFileInStream(pageStart);
 //    int pageSize = (int) Math.min(mPageSize, mStatus.getLength() - pageStart);

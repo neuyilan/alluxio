@@ -21,6 +21,8 @@ import alluxio.metrics.MetricsConfig;
 import alluxio.metrics.MetricsSystem;
 
 import com.google.common.base.Preconditions;
+import java.io.InputStream;
+import org.apache.hadoop.crypto.CryptoInputStream;
 import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -28,6 +30,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DFSHedgedReadMetrics;
+import org.apache.hadoop.hdfs.DFSInputStream;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.util.Progressable;
 import org.slf4j.Logger;
@@ -47,7 +50,6 @@ import java.util.Set;
  * requesting the remote Hadoop FileSystem in case of cache misses.
  */
 public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFileSystem {
-
   private static final Logger LOG = LoggerFactory.getLogger(LocalCacheFileSystem.class);
   private static final Set<String> SUPPORTED_FS = new HashSet<String>() {
     {
@@ -66,6 +68,7 @@ public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFile
   private CacheManager mCacheManager;
   private org.apache.hadoop.conf.Configuration mHadoopConf;
   private AlluxioConfiguration mAlluxioConf;
+  private DFSInputStream dfsInputStream;
 
   public LocalCacheFileSystem() {
   }
@@ -104,7 +107,8 @@ public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFile
     String origin = getConf().get(hdfsImpl);
     getConf().set(hdfsImpl, DistributedFileSystem.class.getName());
     try {
-      org.apache.hadoop.fs.FileSystem fileSystem = org.apache.hadoop.fs.FileSystem.get(uri, getConf());
+      org.apache.hadoop.fs.FileSystem fileSystem = org.apache.hadoop.fs.FileSystem
+          .get(uri, getConf());
       HadoopFileOpener fileOpener = uriStatus -> fileSystem.open(new Path(uriStatus.getPath()));
       mExternalFileSystem = Preconditions.checkNotNull(fileSystem, "filesystem");
       mHadoopFileOpener = Preconditions.checkNotNull(fileOpener, "fileOpener");
@@ -124,7 +128,8 @@ public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFile
     }
     MetricsSystem.startSinksFromConfig(new MetricsConfig(metricsProperties));
     mCacheManager = CacheManager.Factory.get(mAlluxioConf);
-    LOG.info("add qihouliang, initialize the LocalCacheFileSystem, mCacheManager={}", mCacheManager);
+    LOG.info("add qihouliang, initialize the LocalCacheFileSystem, mCacheManager={}",
+        mCacheManager);
   }
 
   @Override
@@ -158,7 +163,7 @@ public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFile
   /**
    * Attempts to open the specified file for reading.
    *
-   * @param status the status of the file to open
+   * @param status     the status of the file to open
    * @param bufferSize stream buffer size in bytes, currently unused
    * @return an {@link FSDataInputStream} at the indicated path of a file
    */
@@ -167,9 +172,26 @@ public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFile
       return mExternalFileSystem.open(HadoopUtils.toPath(new AlluxioURI(status.getPath())),
           bufferSize);
     }
+
+    LocalCacheFileInStream localCacheFileInStream =
+        new LocalCacheFileInStream(status, mAlluxioFileOpener, mCacheManager, mAlluxioConf);
+    localCacheFileInStream.init();
+
+    AlluxioHdfsInputStream alluxioHdfsInputStream = (AlluxioHdfsInputStream) localCacheFileInStream
+        .getmExternalFileInStream();
+    FSDataInputStream fsDataInputStream = alluxioHdfsInputStream.getmInput();
+
+    InputStream inputStream = fsDataInputStream.getWrappedStream();
+    dfsInputStream = getDFSInputStream(inputStream);
+
+    /* the original codes
     return new FSDataInputStream(new HdfsFileInputStream(
         new LocalCacheFileInStream(status, mAlluxioFileOpener, mCacheManager, mAlluxioConf),
         statistics));
+     **/
+
+    return new HdfsDataFileInputStream(new HdfsFileInputStream(localCacheFileInStream, statistics),
+        dfsInputStream);
   }
 
   @Override
@@ -227,7 +249,7 @@ public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFile
 
   @Override
   public boolean isFileClosed(final Path src) throws IOException {
-    return ((DistributedFileSystem)mExternalFileSystem).isFileClosed(src);
+    return ((DistributedFileSystem) mExternalFileSystem).isFileClosed(src);
   }
 
   @Override
@@ -237,11 +259,20 @@ public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFile
 
   @Override
   public boolean recoverLease(final Path f) throws IOException {
-    return ((DistributedFileSystem)mExternalFileSystem).recoverLease(f);
+    return ((DistributedFileSystem) mExternalFileSystem).recoverLease(f);
   }
 
   @Override
-  public DFSHedgedReadMetrics getHedgedReadMetrics(){
-    return ((DistributedFileSystem)mExternalFileSystem).getHedgedReadMetrics();
+  public DFSHedgedReadMetrics getHedgedReadMetrics() {
+    return ((DistributedFileSystem) mExternalFileSystem).getHedgedReadMetrics();
+  }
+
+  private DFSInputStream getDFSInputStream(InputStream in) throws IOException{
+    if (in instanceof CryptoInputStream) {
+      return (DFSInputStream) ((CryptoInputStream) in).getWrappedStream();
+    } else if (in instanceof DFSInputStream) {
+      return (DFSInputStream) in;
+    }
+    throw new IOException("getDFSInputStream failed, in="+ in.toString());
   }
 }

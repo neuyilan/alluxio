@@ -196,6 +196,22 @@ public class HdfsFileInputStream extends InputStream implements Seekable, Positi
   @Override
   public int read(ByteBuffer buf) throws IOException {
     LOG.debug("add by qihouliang, come in the read(ByteBuffer buf) in HdfsFileInputStream");
-    return mInputStream.read(buf);
+    if (mClosed) {
+      throw new IOException(ExceptionMessage.READ_CLOSED_STREAM.getMessage());
+    }
+
+    int bytesRead = mInputStream.read(buf);
+    if (bytesRead != -1 && mStatistics != null) {
+      mStatistics.incrementBytesRead(bytesRead);
+    }
+    return bytesRead;
+  }
+
+  public FileInStream getmInputStream() {
+    return mInputStream;
+  }
+
+  public Statistics getmStatistics() {
+    return mStatistics;
   }
 }

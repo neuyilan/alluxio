@@ -108,4 +108,8 @@ public class AlluxioHdfsInputStream extends FileInStream {
     LOG.debug("add by qihouliang, come in the read(ByteBuffer buf) in AlluxioHdfsInputStream");
     return mInput.read(buf);
   }
+
+  public FSDataInputStream getmInput() {
+    return mInput;
+  }
 }
