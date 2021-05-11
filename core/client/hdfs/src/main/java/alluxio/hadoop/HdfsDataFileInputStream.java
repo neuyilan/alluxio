@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.hadoop.fs.FileSystem.Statistics;
 import org.apache.hadoop.hdfs.DFSInputStream;
-import org.apache.hadoop.hdfs.ReadStatistics;
+//import org.apache.hadoop.hdfs.ReadStatistics;
 import org.apache.hadoop.hdfs.client.HdfsDataInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +34,8 @@ public class HdfsDataFileInputStream extends HdfsDataInputStream {
   private HdfsFileInputStream mInputStream;
   private DFSInputStream mDfsInputStream;
 
-  public HdfsDataFileInputStream(HdfsFileInputStream fileInStream, DFSInputStream dfsInputStream) throws IOException {
+  public HdfsDataFileInputStream(HdfsFileInputStream fileInStream, DFSInputStream dfsInputStream)
+      throws IOException {
     super(dfsInputStream);
     mDfsInputStream = dfsInputStream;
     mInputStream = fileInStream;
@@ -82,7 +83,7 @@ public class HdfsDataFileInputStream extends HdfsDataInputStream {
 
   @Override
   public boolean seekToNewSource(long targetPos) throws IOException {
-    return mDfsInputStream.seekToNewSource(targetPos);
+    return mInputStream.seekToNewSource(targetPos);
   }
 
   @Override
@@ -98,29 +99,32 @@ public class HdfsDataFileInputStream extends HdfsDataInputStream {
 
   // TODO (qihouliang, only care about the total bytes read)
   // for 3.0 version and above
-  @Override
-  public ReadStatistics getReadStatistics() {
-    ReadStatistics readStatistics = new ReadStatistics();
-    readStatistics.addLocalBytes(mInputStream.getmStatistics().getBytesRead());
-    LOG.info("add by qihouliang,{}, {}", mInputStream.getmStatistics(), readStatistics);
-    return readStatistics;
-  }
+//  @Override
+//  public ReadStatistics getReadStatistics() {
+//    ReadStatistics readStatistics = new ReadStatistics();
+//    readStatistics.addLocalBytes(mInputStream.getmStatistics().getBytesRead());
+//    LOG.debug("add by qihouliang,{}, {}", mInputStream.getmStatistics(), readStatistics);
+//    return readStatistics;
+//  }
 
-  /**
   // for 2.6.5 version
   public synchronized DFSInputStream.ReadStatistics getReadStatistics() {
     AlluxioReadStatistics alluxioReadStatistics = new AlluxioReadStatistics();
     alluxioReadStatistics.addLocalBytes(mInputStream.getmStatistics().getBytesRead());
 
-    LOG.info("add by qihouliang111,{}, {}", mInputStream.getmStatistics().toString(), alluxioReadStatistics.toString());
-    DFSInputStream.ReadStatistics parentResult = new DFSInputStream.ReadStatistics(alluxioReadStatistics);
+    LOG.debug("add by qihouliang111,{}, {}", mInputStream.getmStatistics().toString(),
+        alluxioReadStatistics.toString());
+    DFSInputStream.ReadStatistics parentResult = new DFSInputStream.ReadStatistics(
+        alluxioReadStatistics);
 
-    LOG.info("add by qihouliang parent,total {}", parentResult.getTotalBytesRead());
-    LOG.info("add by qihouliang parent,getTotalLocalBytesRead {}", parentResult.getTotalLocalBytesRead());
+    LOG.debug("add by qihouliang parent,total {}", parentResult.getTotalBytesRead());
+    LOG.debug("add by qihouliang parent,getTotalLocalBytesRead {}",
+        parentResult.getTotalLocalBytesRead());
     return parentResult;
   }
 
-  class AlluxioReadStatistics extends DFSInputStream.ReadStatistics{
+  class AlluxioReadStatistics extends DFSInputStream.ReadStatistics {
+
     private long totalBytesRead;
     private long totalLocalBytesRead;
     private long totalShortCircuitBytesRead;
@@ -166,6 +170,4 @@ public class HdfsDataFileInputStream extends HdfsDataInputStream {
           + "}";
     }
   }
-   **/
-
 }

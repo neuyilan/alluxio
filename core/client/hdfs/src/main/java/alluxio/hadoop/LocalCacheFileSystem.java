@@ -128,7 +128,7 @@ public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFile
     }
     MetricsSystem.startSinksFromConfig(new MetricsConfig(metricsProperties));
     mCacheManager = CacheManager.Factory.get(mAlluxioConf);
-    LOG.info("add qihouliang, initialize the LocalCacheFileSystem, mCacheManager={}",
+    LOG.debug("add qihouliang, initialize the LocalCacheFileSystem, mCacheManager={}",
         mCacheManager);
   }
 
@@ -151,12 +151,12 @@ public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFile
 
   @Override
   public FSDataInputStream open(Path path, int bufferSize) throws IOException {
-    LOG.debug("qhl, open 111111111");
+    LOG.debug("qihouliang, open 111111111");
     if (mCacheManager == null) {
       return mExternalFileSystem.open(path, bufferSize);
     }
     URIStatus status = HadoopUtils.toAlluxioUriStatus(mExternalFileSystem.getFileStatus(path));
-    LOG.debug("qhl, open 22222222");
+    LOG.debug("qihouliang, open 22222222");
     return open(status, bufferSize);
   }
 
