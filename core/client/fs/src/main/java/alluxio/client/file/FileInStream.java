@@ -16,6 +16,7 @@ import alluxio.client.BoundedStream;
 import alluxio.client.PositionedReadable;
 
 import java.io.InputStream;
+import org.apache.hadoop.fs.ByteBufferReadable;
 
 /**
  * A streaming API to read a file. This API represents a file as a stream of bytes and provides a
@@ -23,5 +24,5 @@ import java.io.InputStream;
  * into a given offset of the stream to read.
  */
 public abstract class FileInStream extends InputStream implements BoundedStream, PositionedReadable,
-    Seekable {
+    Seekable, ByteBufferReadable {
 }

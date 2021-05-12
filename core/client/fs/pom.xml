@@ -27,6 +27,7 @@
     <!-- run properly from sub-project directories -->
     <build.path>${project.parent.parent.parent.basedir}/build</build.path>
     <failIfNoTests>false</failIfNoTests>
+    <ufs.hadoop.version>3.3.0</ufs.hadoop.version>
   </properties>
 
   <dependencies>
@@ -83,6 +84,14 @@
       <artifactId>alluxio-core-transport</artifactId>
       <version>${project.version}</version>
     </dependency>
+
+    <!--add by qhl-->
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-common</artifactId>
+      <version>${ufs.hadoop.version}</version>
+    </dependency>
+    <!--add by qhl-->
 
     <!-- Internal test dependencies -->
     <dependency>

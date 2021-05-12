@@ -21,11 +21,17 @@ import alluxio.metrics.MetricsConfig;
 import alluxio.metrics.MetricsSystem;
 
 import com.google.common.base.Preconditions;
+import java.io.InputStream;
+import org.apache.hadoop.crypto.CryptoInputStream;
+import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.DFSHedgedReadMetrics;
+import org.apache.hadoop.hdfs.DFSInputStream;
+import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.util.Progressable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,22 +49,29 @@ import java.util.Set;
  * interface, using Alluxio local cache. This client will first consult the local cache before
  * requesting the remote Hadoop FileSystem in case of cache misses.
  */
-public class LocalCacheFileSystem extends org.apache.hadoop.fs.FileSystem {
+public class LocalCacheFileSystem extends org.apache.hadoop.hdfs.DistributedFileSystem {
   private static final Logger LOG = LoggerFactory.getLogger(LocalCacheFileSystem.class);
   private static final Set<String> SUPPORTED_FS = new HashSet<String>() {
     {
       add(Constants.SCHEME);
       add("ws");
+      add("hdfs");
     }
   };
 
-  /** The external Hadoop filesystem to query on cache miss. */
-  private final org.apache.hadoop.fs.FileSystem mExternalFileSystem;
-  private final HadoopFileOpener mHadoopFileOpener;
-  private final LocalCacheFileInStream.FileInStreamOpener mAlluxioFileOpener;
+  /**
+   * The external Hadoop filesystem to query on cache miss.
+   */
+  private org.apache.hadoop.fs.FileSystem mExternalFileSystem;
+  private HadoopFileOpener mHadoopFileOpener;
+  private LocalCacheFileInStream.FileInStreamOpener mAlluxioFileOpener;
   private CacheManager mCacheManager;
   private org.apache.hadoop.conf.Configuration mHadoopConf;
   private AlluxioConfiguration mAlluxioConf;
+  private DFSInputStream dfsInputStream;
+
+  public LocalCacheFileSystem() {
+  }
 
   /**
    * @param fileSystem File System instance
@@ -85,10 +98,28 @@ public class LocalCacheFileSystem extends org.apache.hadoop.fs.FileSystem {
       throw new UnsupportedOperationException(
           uri.getScheme() + " is not supported as the external filesystem.");
     }
-    super.initialize(uri, conf);
+
     mHadoopConf = conf;
     // Set statistics
     setConf(conf);
+
+    String hdfsImpl = "fs.hdfs.impl";
+    String origin = getConf().get(hdfsImpl);
+    getConf().set(hdfsImpl, DistributedFileSystem.class.getName());
+    try {
+      org.apache.hadoop.fs.FileSystem fileSystem = org.apache.hadoop.fs.FileSystem
+          .get(uri, getConf());
+      HadoopFileOpener fileOpener = uriStatus -> fileSystem.open(new Path(uriStatus.getPath()));
+      mExternalFileSystem = Preconditions.checkNotNull(fileSystem, "filesystem");
+      mHadoopFileOpener = Preconditions.checkNotNull(fileOpener, "fileOpener");
+      mAlluxioFileOpener = status -> new AlluxioHdfsInputStream(mHadoopFileOpener.open(status));
+    } catch (IOException e) {
+      LOG.error("initialize LocalCacheFileSystem failed");
+    }
+
+    getConf().set(hdfsImpl, origin);
+
+    super.initialize(uri, conf);
     mAlluxioConf = HadoopUtils.toAlluxioConf(mHadoopConf);
     // Handle metrics
     Properties metricsProperties = new Properties();
@@ -97,6 +128,8 @@ public class LocalCacheFileSystem extends org.apache.hadoop.fs.FileSystem {
     }
     MetricsSystem.startSinksFromConfig(new MetricsConfig(metricsProperties));
     mCacheManager = CacheManager.Factory.get(mAlluxioConf);
+    LOG.debug("add qihouliang, initialize the LocalCacheFileSystem, mCacheManager={}",
+        mCacheManager);
   }
 
   @Override
@@ -118,17 +151,19 @@ public class LocalCacheFileSystem extends org.apache.hadoop.fs.FileSystem {
 
   @Override
   public FSDataInputStream open(Path path, int bufferSize) throws IOException {
+    LOG.debug("qihouliang, open 111111111");
     if (mCacheManager == null) {
       return mExternalFileSystem.open(path, bufferSize);
     }
     URIStatus status = HadoopUtils.toAlluxioUriStatus(mExternalFileSystem.getFileStatus(path));
+    LOG.debug("qihouliang, open 22222222");
     return open(status, bufferSize);
   }
 
   /**
    * Attempts to open the specified file for reading.
    *
-   * @param status the status of the file to open
+   * @param status     the status of the file to open
    * @param bufferSize stream buffer size in bytes, currently unused
    * @return an {@link FSDataInputStream} at the indicated path of a file
    */
@@ -137,9 +172,26 @@ public class LocalCacheFileSystem extends org.apache.hadoop.fs.FileSystem {
       return mExternalFileSystem.open(HadoopUtils.toPath(new AlluxioURI(status.getPath())),
           bufferSize);
     }
+
+    LocalCacheFileInStream localCacheFileInStream =
+        new LocalCacheFileInStream(status, mAlluxioFileOpener, mCacheManager, mAlluxioConf);
+    localCacheFileInStream.init();
+
+    AlluxioHdfsInputStream alluxioHdfsInputStream = (AlluxioHdfsInputStream) localCacheFileInStream
+        .getmExternalFileInStream();
+    FSDataInputStream fsDataInputStream = alluxioHdfsInputStream.getmInput();
+
+    InputStream inputStream = fsDataInputStream.getWrappedStream();
+    dfsInputStream = getDFSInputStream(inputStream);
+
+    /* the original codes
     return new FSDataInputStream(new HdfsFileInputStream(
         new LocalCacheFileInStream(status, mAlluxioFileOpener, mCacheManager, mAlluxioConf),
         statistics));
+     **/
+
+    return new HdfsDataFileInputStream(new HdfsFileInputStream(localCacheFileInStream, statistics),
+        dfsInputStream);
   }
 
   @Override
@@ -193,5 +245,34 @@ public class LocalCacheFileSystem extends org.apache.hadoop.fs.FileSystem {
   @Override
   public FileStatus getFileStatus(Path f) throws IOException {
     return mExternalFileSystem.getFileStatus(f);
+  }
+
+  @Override
+  public boolean isFileClosed(final Path src) throws IOException {
+    return ((DistributedFileSystem) mExternalFileSystem).isFileClosed(src);
+  }
+
+  @Override
+  public ContentSummary getContentSummary(Path f) throws IOException {
+    return mExternalFileSystem.getContentSummary(f);
+  }
+
+  @Override
+  public boolean recoverLease(final Path f) throws IOException {
+    return ((DistributedFileSystem) mExternalFileSystem).recoverLease(f);
+  }
+
+  @Override
+  public DFSHedgedReadMetrics getHedgedReadMetrics() {
+    return ((DistributedFileSystem) mExternalFileSystem).getHedgedReadMetrics();
+  }
+
+  private DFSInputStream getDFSInputStream(InputStream in) throws IOException{
+    if (in instanceof CryptoInputStream) {
+      return (DFSInputStream) ((CryptoInputStream) in).getWrappedStream();
+    } else if (in instanceof DFSInputStream) {
+      return (DFSInputStream) in;
+    }
+    throw new IOException("getDFSInputStream failed, in="+ in.toString());
   }
 }

@@ -14,15 +14,19 @@ package alluxio.hadoop;
 import alluxio.client.file.FileInStream;
 
 import com.google.common.base.Preconditions;
+import java.nio.ByteBuffer;
 import org.apache.hadoop.fs.FSDataInputStream;
 
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A wrapper class to translate Hadoop FileSystem FSDataInputStream to Alluxio FileSystem
  * FileInStream.
  */
 public class AlluxioHdfsInputStream extends FileInStream {
+  private static final Logger LOG = LoggerFactory.getLogger(AlluxioHdfsInputStream.class);
   private final FSDataInputStream mInput;
 
   /**
@@ -97,5 +101,15 @@ public class AlluxioHdfsInputStream extends FileInStream {
   public int positionedRead(long position, byte[] buffer, int offset, int length)
       throws IOException {
     return mInput.read(position, buffer, offset, length);
+  }
+
+  @Override
+  public int read(ByteBuffer buf) throws IOException {
+    LOG.debug("add by qihouliang, come in the read(ByteBuffer buf) in AlluxioHdfsInputStream");
+    return mInput.read(buf);
+  }
+
+  public FSDataInputStream getmInput() {
+    return mInput;
   }
 }
